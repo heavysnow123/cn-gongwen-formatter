@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "word-formatter-pro"
+version = "1.0.0"
+description = "开源中文文档智能排版工具（Word Formatter Pro 重写版）"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-docx>=1.1",
+    "customtkinter>=5.2",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[project.scripts]
+word-formatter = "word_formatter.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pyinstaller]
+# 由 build.py 调用

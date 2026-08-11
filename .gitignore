@@ -1,0 +1,25 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+.venv/
+build/
+
+# ===== 打包产物（含专有字体，禁止开源分发） =====
+dist/
+*.exe
+
+# ===== 专有字体（版权受限，不可进入仓库） =====
+# 用户需自行从已授权的 Windows 系统放置；开源字体已随仓库提供
+fonts/仿宋_GB2312.ttf
+fonts/楷体_GB2312.ttf
+
+# ===== 临时/日志/一次性脚本 =====
+build_log.txt
+tmp_small.docx
+dl_font.py
+analyze_exe.py
+probe_ver.py
+
+# ===== 系统 =====
+.DS_Store
+Thumbs.db
