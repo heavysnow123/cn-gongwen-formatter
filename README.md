@@ -47,6 +47,14 @@
   请使用您已合法获得的字体并自行安装到系统。大标题用的思源宋体（Source Han Serif）为
   SIL OFL 开源字体，可免费获取安装。
 
+## 下载
+
+- **Windows 单文件 EXE（无需安装 Python）**：[WordFormatterPro.exe v1.0.0](https://github.com/heavysnow123/cn-gongwen-formatter/releases/download/v1.0.0/WordFormatterPro.exe)
+- 所有版本与更新说明：[Releases 页面](https://github.com/heavysnow123/cn-gongwen-formatter/releases)
+
+> 运行前请确认系统已安装「仿宋_GB2312」与「楷体_GB2312」（公文必备字体）；
+> 大标题用的思源宋体（Source Han Serif）为 SIL OFL 开源字体，可免费获取安装。
+
 ## 安装与运行
 
 ```bash
