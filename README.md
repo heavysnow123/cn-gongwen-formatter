@@ -36,8 +36,17 @@
 
 ## PDF 导出
 
-左侧「快捷工具 → 导出 PDF」将排版后的 `.docx` 一键导出为 PDF。自动探测本机可用渲染引擎：
-Microsoft Word → WPS → LibreOffice（headless），任一可用即可，无需额外配置。
+左侧「快捷工具 → 导出 PDF」将排版后的 `.docx` 一键导出为 PDF。导出后端自动探测：
+
+1. Microsoft Word（版式与 Word 完全一致）
+2. WPS Office
+3. LibreOffice（headless）
+4. **内置引擎（reportlab，纯 Python）** —— 本工具自带，无需安装任何办公软件即可导出 PDF。
+
+勾选「优先用内置引擎（不依赖 Office）」可跳过外部程序、直接用内置引擎导出；未勾选时
+若本机没有 Word/WPS/LibreOffice，也会自动回退到内置引擎，保证一定能导出。
+内置引擎以通用排版规则还原字体、字号、对齐、行距、页边距、表格与红头颜色，
+与 Word 的分页可能略有差异，但内容、字体与版式要素完整可打印。
 
 ## 排版质检
 

@@ -35,6 +35,9 @@ def main():
         "--hidden-import", "win32com",
         "--hidden-import", "win32com.client",
         "--hidden-import", "pythoncom",
+        "--hidden-import", "reportlab",
+        "--hidden-import", "reportlab.pdfbase.cidfonts",
+        "--hidden-import", "reportlab.pdfbase.ttfonts",
     ]
 
     print(f"开始构建 WordFormatterPro.exe（临时目录 {tmp}）...")

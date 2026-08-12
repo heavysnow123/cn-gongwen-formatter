@@ -206,6 +206,9 @@ class WordFormatterGUI:
         ctk.CTkButton(trow, text="模板", width=88, command=self.open_template).pack(side="left", padx=4)
         ctk.CTkButton(trow, text="排版质检", width=88, command=self.open_check).pack(side="left", padx=4)
         ctk.CTkButton(trow, text="导出PDF", width=88, command=self.export_pdf_action).pack(side="left", padx=4)
+        self.use_builtin_pdf = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(tools, text="优先用内置引擎（不依赖 Office）",
+                        variable=self.use_builtin_pdf).pack(anchor="w", padx=6, pady=(0, 4))
 
     # 右：参数标签页
         right = ctk.CTkFrame(main)
@@ -815,16 +818,19 @@ class WordFormatterGUI:
 
     def export_pdf_action(self):
         from tkinter import filedialog
-        from .export_pdf import export_pdf
+        from . import export_pdf as _pdfmod
         p = filedialog.askopenfilename(
             filetypes=[("Word", "*.docx")], title="选择要导出的文档")
         if not p:
             return
-        self._log(f"正在导出 PDF：{os.path.basename(p)} …")
+        prefer = bool(self.use_builtin_pdf.get())
+        self._log(f"正在导出 PDF：{os.path.basename(p)} …"
+                  f"{'（内置引擎）' if prefer else ''}")
         def worker():
             try:
-                out = export_pdf(p)
-                self._queue_log(f"✅ 已导出 PDF：{out}", "INFO")
+                out = _pdfmod.export_pdf(p, prefer_builtin=prefer)
+                engine = _pdfmod.LAST_ENGINE or "未知"
+                self._queue_log(f"✅ 已导出 PDF：{out}（引擎：{engine}）", "INFO")
             except Exception as e:
                 self._queue_log(f"❌ PDF 导出失败：{e}", "ERROR")
         threading.Thread(target=worker, daemon=True).start()
