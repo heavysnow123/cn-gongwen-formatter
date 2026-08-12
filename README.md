@@ -128,12 +128,24 @@ python -m venv .venv
 正文..." -o result.docx
 ```
 
-## 构建独立 EXE
+## 构建（Windows 版 / 国产系统版）
 
-```bash
-.venv\Scripts\python.exe build.py
-# 产物：dist/WordFormatterPro.exe
-```
+两个版本**共用同一套源码**（`src/`），功能与界面完全一致，仅在窗口标题 / 关于中
+标注「Windows 版」或「国产系统版」，以及各自的打包产物不同。
+
+- **Windows 版**（单文件 EXE，双击即用）：
+  ```bash
+  .venv\Scripts\python.exe build.py
+  # 产物：dist/WordFormatterPro.exe
+  ```
+- **国产系统版**（统信 UOS / 银河麒麟等 Linux，单文件可执行）：
+  ```bash
+  chmod +x build_linux.sh
+  ./build_linux.sh
+  # 产物：dist/WordFormatterPro（Linux 单文件，无需安装 Python）
+  ```
+  > PyInstaller 不支持交叉编译：x86_64 / ARM64 / LoongArch 需在该架构的本机
+  > （或对应架构的容器）上构建。如需免安装 AppImage，可用 linuxdeploy 对产物再封装。
 
 ## 目录结构
 
@@ -151,7 +163,9 @@ word-formatter-pro/
 │   ├── export_pdf.py # PDF 导出：Word/WPS/LibreOffice 后端探测
 │   └── __init__.py
 ├── tests/            # 无头单元测试
-├── build.py          # 构建脚本
+├── build.py          # Windows 版构建（产出 WordFormatterPro.exe）
+├── build_linux.sh    # 国产系统版构建（产出 Linux 单文件 WordFormatterPro）
+├── run_linux.sh      # 国产系统一键启动（建 venv + 装依赖 + 启动 GUI）
 ├── launcher.py       # EXE 启动入口
 └── pyproject.toml
 ```

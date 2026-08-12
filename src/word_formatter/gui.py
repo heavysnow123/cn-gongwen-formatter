@@ -11,10 +11,47 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
+import sys
 import threading
 
-import customtkinter as ctk
+try:
+    import customtkinter as ctk
+except ImportError:
+    # 友好提示而非堆栈：Linux / 国产系统若未装 customtkinter 时给出明确指引
+    import tkinter as _tk
+    from tkinter import messagebox as _mb
+    _root = _tk.Tk()
+    _root.withdraw()
+    _mb.showerror(
+        "缺少依赖",
+        "未找到 customtkinter，请先安装：\n\n"
+        "  pip install customtkinter\n\n"
+        "国产系统（统信 UOS / 银河麒麟等）也可直接运行项目根目录的\n"
+        "run_linux.sh 一键启动（会自动安装依赖）。",
+    )
+    _root.destroy()
+    raise SystemExit(1)
+
+
+# 产品标识（Windows 版 / 国产系统版共用同一套代码，功能与界面统一）
+APP_NAME = "中文文档智能排版工具"
+APP_VERSION = "1.1.0"
+
+
+def platform_label() -> str:
+    """返回当前运行版本的平台标注，用于标题 / 关于显示。"""
+    if sys.platform.startswith("win"):
+        return "Windows 版"
+    if sys.platform == "darwin":
+        return "macOS 版"
+    return "国产系统版"
+
+
+def platform_arch() -> str:
+    """返回 CPU 架构信息，如 x86_64 / aarch64 / loongarch64。"""
+    return platform.machine() or "unknown"
 
 from .config import (
     FormatterConfig, BLANK_LINE_MODE_OPTIONS, SUPPORTED_FILE_EXTENSIONS,
@@ -86,7 +123,7 @@ class WordFormatterGUI:
             self.root = TkinterDnD.Tk()
         else:
             self.root = ctk.CTk()
-        self.root.title("Word 排版工具  v1.0")
+        self.root.title(f"{APP_NAME} v{APP_VERSION} · {platform_label()}")
         self.root.geometry("1080x760")
         self.root.minsize(900, 640)
 
@@ -694,6 +731,8 @@ class WordFormatterGUI:
     # ---------------- 帮助 / 退出 ----------------
     def show_help(self):
         help_text = (
+            f"【{APP_NAME}】 v{APP_VERSION} · {platform_label()}（{platform_arch()}）\n"
+            "开源 MIT 许可 · 同一套代码，Windows 与国产系统功能界面完全一致。\n\n"
             "【核心功能】\n"
             "• 批量处理 .docx/.doc/.wps/.txt/.md，或直接在“其他”页粘贴文本排版。\n\n"
             "【智能识别】\n"
@@ -705,9 +744,10 @@ class WordFormatterGUI:
             "【优化】COM 常驻复用、参数全可配、跨平台转换兜底。\n\n"
             "【字号】所有字号均用下拉选择，与 Word“开始”选项卡一致：\n"
             "初号~八号（42→5 磅）及常用数字档，也可直接手输任意磅值。\n\n"
-            "【公文字体】公文规范常用：仿宋_GB2312（正文）、楷体_GB2312（二级标题/签发人）\n"
-            "为必备字体，现代 Windows 已不内置，缺失时请自行安装后再排版；大标题（二号·加粗）用\n"
-            "思源宋体（开源 SIL OFL，可免费获取安装）。本工具不安装字体，可在“字体”页查看状态。"
+            "【中文字体】中文排版常用仿宋（正文）、楷体（标题）：Windows 用仿宋_GB2312 /\n"
+            "楷体_GB2312；Linux / 国产系统可用开源 FandolFang（方政仿宋）、文鼎 AR PL UKai\n"
+            "（楷体）、思源宋体 / Noto Serif CJK（大标题）替代。缺失时可在“字体”页查看状态，\n"
+            "本工具不安装字体，请自行准备并安装到系统。"
         )
         win = ctk.CTkToplevel(self.root)
         win.title("使用说明")
