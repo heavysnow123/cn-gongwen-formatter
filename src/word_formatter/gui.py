@@ -196,7 +196,18 @@ class WordFormatterGUI:
         ctk.CTkButton(row, text="移除选中", width=90, command=self.remove_file).pack(side="left", padx=4)
         ctk.CTkButton(row, text="清空列表", width=90, command=self.clear_list).pack(side="left", padx=4)
 
-        # 右：参数标签页
+        # 左侧底部：快捷工具
+        tools = ctk.CTkFrame(left)
+        tools.pack(fill="x", padx=8, pady=(2, 8))
+        ctk.CTkLabel(tools, text="快捷工具", font=ctk.CTkFont(weight="bold")
+                     ).pack(anchor="w", padx=6, pady=(2, 0))
+        trow = ctk.CTkFrame(tools)
+        trow.pack(fill="x", padx=4, pady=4)
+        ctk.CTkButton(trow, text="模板", width=88, command=self.open_template).pack(side="left", padx=4)
+        ctk.CTkButton(trow, text="排版质检", width=88, command=self.open_check).pack(side="left", padx=4)
+        ctk.CTkButton(trow, text="导出PDF", width=88, command=self.export_pdf_action).pack(side="left", padx=4)
+
+    # 右：参数标签页
         right = ctk.CTkFrame(main)
         right.grid(row=0, column=1, sticky="nsew")
         self.tab = ctk.CTkTabview(right)
@@ -717,6 +728,106 @@ class WordFormatterGUI:
 
     def run(self):
         self.root.mainloop()
+
+    # ---------------- 模板 / 质检 / 导出 ----------------
+    def open_template(self):
+        win = ctk.CTkToplevel(self.root)
+        win.title("文档模板")
+        win.geometry("480x380")
+        win.transient(self.root)
+        ctk.CTkLabel(win, text="选择模板：自动套用排版预设并生成标准骨架文档",
+                     font=ctk.CTkFont(weight="bold")).pack(pady=(12, 6))
+
+        def card(kind, title, desc):
+            f = ctk.CTkFrame(win)
+            f.pack(fill="x", padx=20, pady=6)
+            ctk.CTkLabel(f, text=title, font=ctk.CTkFont(weight="bold", size=15)
+                         ).pack(anchor="w", padx=10, pady=(6, 0))
+            ctk.CTkLabel(f, text=desc, text_color=("gray50", "gray60"),
+                         justify="left").pack(anchor="w", padx=10)
+            ctk.CTkButton(f, text="生成", width=90,
+                          command=lambda k=kind: self._apply_and_build(k)).pack(
+                anchor="e", padx=10, pady=6)
+
+        card("gongwen", "公文", "红头+版心页边距+仿宋正文+页码；生成完整公文骨架")
+        card("report", "报告", "黑体标题层级+宋体正文+页码页眉；生成报告骨架")
+        card("redhead", "红头", "仅生成红色发文机关标志+红线+文号占位")
+
+    def _apply_and_build(self, kind):
+        from tkinter import filedialog
+        from .templates import (TEMPLATES, generate_gongwen,
+                                generate_report, generate_redhead)
+        from docx import Document
+        if kind in TEMPLATES:
+            _, fn = TEMPLATES[kind]
+            self.cfg = fn()
+            self._apply_config(self.cfg)
+            self.cfg.save(FormatterConfig.default_config_path())
+            label = "公文" if kind == "gongwen" else "报告"
+            self._log(f"已套用「{label}」排版预设")
+        out = filedialog.asksaveasfilename(
+            defaultextension=".docx", filetypes=[("Word", "*.docx")],
+            title="保存生成的文档")
+        if not out:
+            return
+        doc = Document()
+        if kind == "gongwen":
+            generate_gongwen(doc)
+        elif kind == "report":
+            generate_report(doc)
+        elif kind == "redhead":
+            generate_redhead(doc)
+        doc.save(out)
+        self._log(f"✅ 已生成模板文档：{out}")
+
+    def open_check(self):
+        from tkinter import filedialog
+        from .checker import check_document
+        p = filedialog.askopenfilename(
+            filetypes=[("Word", "*.docx")], title="选择待质检文档")
+        if not p:
+            return
+        try:
+            rep = check_document(p)
+        except Exception as e:
+            self._log(f"❌ 质检失败：{e}", "ERROR")
+            return
+        win = ctk.CTkToplevel(self.root)
+        win.title("排版质检报告")
+        win.geometry("560x480")
+        win.transient(self.root)
+        ctk.CTkLabel(win, text=f"综合评分 {rep['score']} / 100　等级：{rep['level']}",
+                     font=ctk.CTkFont(weight="bold", size=16)).pack(pady=10)
+        box = ctk.CTkScrollableFrame(win)
+        box.pack(fill="both", expand=True, padx=12, pady=6)
+        mark = {"ok": "✅", "warn": "⚠️", "fail": "❌"}
+        for it in rep["items"]:
+            ctk.CTkLabel(box, text=f"{mark.get(it['status'], '•')} {it['name']}",
+                         font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=6, pady=(6, 0))
+            ctk.CTkLabel(box, text=it["detail"], text_color=("gray50", "gray60"),
+                         justify="left", wraplength=500).pack(anchor="w", padx=18)
+        if rep["notes"]:
+            ctk.CTkLabel(box, text="建议：", font=ctk.CTkFont(weight="bold")
+                         ).pack(anchor="w", padx=6, pady=(10, 0))
+            for n in rep["notes"]:
+                ctk.CTkLabel(box, text="• " + n, justify="left",
+                             wraplength=500).pack(anchor="w", padx=18)
+
+    def export_pdf_action(self):
+        from tkinter import filedialog
+        from .export_pdf import export_pdf
+        p = filedialog.askopenfilename(
+            filetypes=[("Word", "*.docx")], title="选择要导出的文档")
+        if not p:
+            return
+        self._log(f"正在导出 PDF：{os.path.basename(p)} …")
+        def worker():
+            try:
+                out = export_pdf(p)
+                self._queue_log(f"✅ 已导出 PDF：{out}", "INFO")
+            except Exception as e:
+                self._queue_log(f"❌ PDF 导出失败：{e}", "ERROR")
+        threading.Thread(target=worker, daemon=True).start()
 
 
 def main():
