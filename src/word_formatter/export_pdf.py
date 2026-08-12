@@ -34,10 +34,19 @@ def _detect_soffice() -> str | None:
     candidates = [
         r"C:\Program Files\LibreOffice\program\soffice.exe",
         r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        "/usr/bin/soffice",
+        "/usr/bin/libreoffice",
+        "/opt/libreoffice/program/soffice",
     ]
     for c in candidates:
         if os.path.exists(c):
             return c
+    import glob
+    for pat in ("/opt/libreoffice*/program/soffice",
+                "/opt/LibreOffice*/program/soffice"):
+        hits = sorted(glob.glob(pat))
+        if hits:
+            return hits[-1]
     found = shutil.which("soffice") or shutil.which("libreoffice")
     return found
 
@@ -138,29 +147,51 @@ def _init_builtin_fonts():
     except Exception:
         pass
 
-    # 系统字体候选：name -> 文件名（在 Windows 字体目录中查找）
+    # 系统字体候选：name -> 候选文件名列表（按优先级，首个存在者注册）。
+    # 同时收录 Windows 专有字体与 Linux / 国产系统常见开源替代
+    # （Fandol 仿宋/楷体、文鼎 AR PL UKai、Noto / 思源等）。
     candidates = {
-        "FangSong": "仿宋_GB2312.ttf",
-        "KaiTi": "楷体_GB2312.ttf",
-        "SimSun": "simsun.ttc",
-        "SimHei": "simhei.ttf",
-        "SourceHanSerif": "SourceHanSerifSC-Regular.otf",
-        "SourceHanSerifB": "SourceHanSerifSC-Bold.otf",
-        "NotoSerifCJK": "NotoSerifCJKsc-Regular.otf",
+        "FangSong": [
+            "仿宋_GB2312.ttf", "FandolFang-Regular.otf", "FandolFang.otf",
+            "FZFangSong-Z01S.ttf", "Fandol Fang.otf",
+        ],
+        "KaiTi": [
+            "楷体_GB2312.ttf", "FandolKai-Regular.otf", "UKaiCN.ttf",
+            "ARPLUKaiCN.ttf", "FZKai-Z03S.ttf", "Fandol Kai.otf",
+        ],
+        "SimSun": [
+            "simsun.ttc", "NotoSerifCJKsc-Regular.otf",
+            "SourceHanSerifSC-Regular.otf",
+        ],
+        "SimHei": [
+            "simhei.ttf", "NotoSansCJKsc-Regular.otf", "SourceHanSansSC-Regular.otf",
+        ],
+        "SourceHanSerif": ["SourceHanSerifSC-Regular.otf"],
+        "SourceHanSerifB": ["SourceHanSerifSC-Bold.otf"],
+        "NotoSerifCJK": ["NotoSerifCJKsc-Regular.otf"],
     }
     search_dirs = [
         os.path.join(os.environ.get("WINDIR", "C:/Windows"), "Fonts"),
         os.path.expandvars("%LOCALAPPDATA%/Microsoft/Windows/Fonts"),
+        "/usr/share/fonts",
+        "/usr/local/share/fonts",
+        os.path.expanduser("~/.fonts"),
+        os.path.expanduser("~/.local/share/fonts"),
     ]
     registered = {}
-    for name, fname in candidates.items():
+    for name, fnames in candidates.items():
         if name in registered:
             continue
-        for d in search_dirs:
-            p = os.path.join(d, fname)
-            if os.path.exists(p):
+        for fname in fnames:
+            found_path = None
+            for d in search_dirs:
+                p = os.path.join(d, fname)
+                if os.path.exists(p):
+                    found_path = p
+                    break
+            if found_path:
                 try:
-                    pdfmetrics.registerFont(TTFont(name, p))
+                    pdfmetrics.registerFont(TTFont(name, found_path))
                     registered[name] = name
                     break
                 except Exception:

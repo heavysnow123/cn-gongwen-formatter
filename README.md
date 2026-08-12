@@ -74,11 +74,34 @@
 中文规范排版常用仿宋_GB2312 作正文、楷体_GB2312 作部分标题；系统缺失时排版软件会回退替代字体，
 导致版式不达标。本工具**只检查、不安装**——字体安装属于系统级修改且涉及授权分发，由用户自行完成。
 
-- **检测**：读取系统字体注册表，按别名匹配（仿宋 / 仿宋_GB2312 / FangSong 等均视为同一字体）。
+- **检测**：跨平台识别系统字体——Windows 读注册表，Linux / macOS 用 `fc-list`（无则扫描字体目录）；按别名匹配，并兼容国产系统开源替代（FandolFang / AR PL UKai / Noto Serif CJK 等）。
 - **触发**：「字体」页点「检查字体状态」查看本机情况；开始排版时也会预检并提示缺失。
 - **授权说明**：仿宋_GB2312 / 楷体_GB2312 为微软专有字体，本工具不内置、不安装；
   请使用您已合法获得的字体并自行安装到系统。大标题用的思源宋体（Source Han Serif）为
   SIL OFL 开源字体，可免费获取安装。
+
+## 国产系统 / Linux 支持
+
+本工具核心逻辑（python-docx 排版、reportlab 内置 PDF 引擎）均为纯 Python，**跨平台可用**，
+已在以下场景验证思路：统信 UOS、银河麒麟等国产 Linux 发行版（x86_64 / ARM64 / LoongArch）。
+
+- **字体检测跨平台**：自动识别系统字体——Windows 读注册表；Linux / macOS 用 `fc-list`
+  （无则扫描 `/usr/share/fonts` 等目录）。除 Windows 专有「仿宋_GB2312 / 楷体_GB2312」外，
+  还会匹配国产系统常见开源替代（**FandolFang 方政仿宋、文鼎 AR PL UKai 楷体、
+  Noto Serif CJK / 思源宋体**），因此无需强装 GB2312 专有字体也能正确排版与导出。
+- **PDF 导出在 Linux 上**：Word / WPS 的 COM 后端在 Linux 不可用（会自动跳过），
+  依次回退到 **LibreOffice headless**（国产系统多预装）或**内置 reportlab 引擎**（纯 Python，
+  自带 CID 中文字体，零依赖即可出中文 PDF）。导出时可勾选「优先用内置引擎」跳过外部程序。
+- **一键运行（无需打包）**：项目根目录 `run_linux.sh` 会自动建虚拟环境、安装运行依赖并启动 GUI：
+  ```bash
+  chmod +x run_linux.sh
+  ./run_linux.sh
+  ```
+  前置：系统需有 `python3`、`python3-venv`、`python3-tk`（GUI 依赖 tkinter）。
+- **旧格式（.doc / .wps）转换**：Windows 走 Word / WPS；Linux 上由 LibreOffice 兜底转换，
+  请确保已安装 LibreOffice。
+- **打包交付**：Windows 提供单文件 EXE；Linux 暂以「源码 + 脚本」方式分发，后续可补充
+  AppImage / deb 包（含 ARM64 / LoongArch 架构）。
 
 ## 下载
 
