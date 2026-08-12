@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 build/
+*.spec
 
 # ===== 打包产物（含专有字体，禁止开源分发） =====
 dist/
