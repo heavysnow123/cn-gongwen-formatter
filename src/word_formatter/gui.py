@@ -37,7 +37,7 @@ except ImportError:
 
 # 产品标识（Windows 版 / 国产系统版共用同一套代码，功能与界面统一）
 APP_NAME = "中文文档智能排版工具"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 
 def platform_label() -> str:
@@ -55,6 +55,7 @@ def platform_arch() -> str:
 
 from .config import (
     FormatterConfig, BLANK_LINE_MODE_OPTIONS, SUPPORTED_FILE_EXTENSIONS,
+    PROCESS_MODE_OPTIONS, NUMBERING_STYLE_OPTIONS,
 )
 
 PRESET_FONTS = [
@@ -320,6 +321,18 @@ class WordFormatterGUI:
         self._field(sf, "西文字体名称", "english_font", font_combo=True)
 
         ctk.CTkFrame(sf, height=2, fg_color=("#DCE7F4", "#243349")).pack(fill="x", pady=8)
+        ctk.CTkLabel(sf, text="标题西文字体（可选，留空=沿用上方全局西文字体）",
+                     font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(2, 2))
+        enf = ctk.CTkFrame(sf)
+        enf.pack(fill="x", padx=4, pady=2)
+        for key, label in (
+            ("title_en_font", "主标题"), ("subtitle_en_font", "副标题"),
+            ("h1_en_font", "一级标题"), ("h2_en_font", "二级标题"),
+            ("h3_en_font", "三/四级标题"), ("h4_en_font", "四级标题"),
+        ):
+            self._field(enf, label, key, font_combo=True, preset=PRESET_FONTS)
+
+        ctk.CTkFrame(sf, height=2, fg_color=("#DCE7F4", "#243349")).pack(fill="x", pady=8)
         ctk.CTkLabel(sf, text="公文字体缺失检查", font=ctk.CTkFont(weight="bold")
                      ).pack(anchor="w", pady=(2, 2))
         ctk.CTkLabel(
@@ -367,6 +380,11 @@ class WordFormatterGUI:
         self._field(sf, "页眉字体（留空沿用上方）", "header_font", font_combo=True, preset=PRESET_CN_FONTS)
         self._field(sf, "页眉字号（0=沿用上方）", "header_size", size_combo=True)
 
+        ctk.CTkFrame(sf, height=2, fg_color=("#DCE7F4", "#243349")).pack(fill="x", pady=8)
+        ctk.CTkLabel(sf, text="页面背景", font=ctk.CTkFont(weight="bold")
+                     ).pack(anchor="w", pady=(2, 2))
+        self._field(sf, "背景色 (hex，如 F2F2F2，留空不设置)", "page_background_color")
+
     # ---------------- 表格页 ----------------
     def _build_table_tab(self):
         sf = self.tab_表格
@@ -395,6 +413,20 @@ class WordFormatterGUI:
     # ---------------- 其他页 ----------------
     def _build_other_tab(self):
         sf = self.tab_其他
+        # 处理模式（全量 / 仅修标点）
+        self._combo(sf, "处理模式", "process_mode",
+                    list(PROCESS_MODE_OPTIONS.keys()),
+                    labels=PROCESS_MODE_OPTIONS)
+        ctk.CTkFrame(sf, height=2, fg_color=("#DCE7F4", "#243349")).pack(fill="x", pady=6)
+        ctk.CTkLabel(sf, text="标点与序号", font=ctk.CTkFont(weight="bold")
+                     ).pack(anchor="w", pady=(2, 2))
+        self._check(sf, "标点全半角标准化（中英文标点统一为全角）", "normalize_punctuation")
+        self._check(sf, "序号风格统一（1. / 1、 / （一）等归一）", "unify_numbering")
+        self._combo(sf, "序号目标风格", "numbering_style",
+                    list(NUMBERING_STYLE_OPTIONS.keys()),
+                    labels=NUMBERING_STYLE_OPTIONS)
+        self._check(sf, "中文换行禁则（避头/避尾 + 启用 Word kinsoku）", "cjk_linebreak_rules")
+        ctk.CTkFrame(sf, height=2, fg_color=("#DCE7F4", "#243349")).pack(fill="x", pady=6)
         # 界面主题（亮/暗），切换即时生效并持久化
         self._combo(sf, "界面主题", "appearance_mode",
                     ["Light", "Dark"],
@@ -404,7 +436,6 @@ class WordFormatterGUI:
         self._field(sf, "正文行距 (倍数)", "line_spacing")
         self._field(sf, "首行缩进 (字符)", "first_line_indent_chars")
         self._check(sf, "自动设置大纲级别（生成导航目录）", "set_outline")
-        self._check(sf, "启用符号标准化（实验）", "normalize_punctuation")
         self._check(sf, "启用附件格式化", "enable_attachment_formatting")
         self._check(sf, "大文件流式模式（极低内存，超大文档建议开启；自动注入页眉页脚/页码）", "streaming_mode")
         self._combo(sf, "TXT/MD 空行处理", "blank_line_mode",
@@ -809,7 +840,10 @@ class WordFormatterGUI:
             f"【{APP_NAME}】 v{APP_VERSION} · {platform_label()}（{platform_arch()}）\n"
             "开源 MIT 许可 · 同一套代码，Windows 与国产系统功能界面完全一致。\n\n"
             "【核心功能】\n"
-            "• 批量处理 .docx/.doc/.wps/.txt/.md，或直接在“其他”页粘贴文本排版。\n\n"
+            "• 批量处理 .docx/.doc/.wps/.txt/.md，或直接在“其他”页粘贴文本排版。\n"
+            "• 处理模式：默认“全量排版”；选“仅修标点”可保留原字体段落，只修标点/序号/禁则。\n"
+            "• “其他”页可开启：标点全半角标准化、序号风格统一、中文换行禁则。\n"
+            "• 标题可在“字体”页分别指定中英文字体（西文字体细分）。\n\n"
             "【智能识别】\n"
             "• 主/副标题：文档开头连续居中、字体字号相同的段落；副标题字号不同。\n"
             "• 一级 一、 二级 （一） 三级 1. 四级 (1)，正文与三/四级共用字体。\n"

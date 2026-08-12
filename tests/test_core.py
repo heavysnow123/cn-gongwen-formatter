@@ -11,7 +11,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from word_formatter.config import FormatterConfig
 from word_formatter.core import (
     WordFormatter, detect_heading_level, clean_markdown,
-    normalize_blank_lines,
+    normalize_blank_lines, normalize_punctuation, unify_numbering,
+    chinese_to_arabic, arabic_to_chinese, apply_cjk_linebreak_rules,
+    set_page_background, set_cjk_linebreak_setting,
 )
 
 
@@ -221,6 +223,87 @@ def test_header_footer_standard():
     print("✓ 标准模式页眉/页脚/总页数正确")
 
 
+# ----------------------- 标点 / 序号 / 禁则 / 背景 -----------------------
+def test_normalize_punctuation():
+    # 中文语境半角 -> 全角
+    assert normalize_punctuation("他说,你好") == "他说，你好"
+    assert normalize_punctuation("标题:副标题") == "标题：副标题"
+    assert normalize_punctuation("问题?答案!") == "问题？答案！"
+    # 数字上下文保留半角（不误伤 1.5 / 1,000）
+    assert normalize_punctuation("版本 1.5 发布") == "版本 1.5 发布"
+    assert normalize_punctuation("共 1,000 份") == "共 1,000 份"
+    # 引号中文语境转直角引号
+    assert "“" in normalize_punctuation('他说"你好"')
+    # 英文语境全角 -> 半角
+    assert normalize_punctuation("Please read（doc）now") == "Please read(doc)now"
+    print("✓ 标点全半角标准化正确")
+
+
+def test_numbering_converters():
+    assert chinese_to_arabic("一") == 1
+    assert chinese_to_arabic("十") == 10
+    assert chinese_to_arabic("二十一") == 21
+    assert chinese_to_arabic("一百零五") == 105
+    assert arabic_to_chinese(1) == "一"
+    assert arabic_to_chinese(10) == "十"
+    assert arabic_to_chinese(21) == "二十一"
+    assert arabic_to_chinese(105) == "一百零五"
+    print("✓ 中阿数字互转正确")
+
+
+def test_unify_numbering():
+    assert unify_numbering("1. 引言", "chinese_dot") == "一、引言"
+    assert unify_numbering("（一）范围", "arabic_dot") == "1.范围"
+    assert unify_numbering("1、背景", "paren_chinese") == "（一）背景"
+    assert unify_numbering("（1）细则", "arabic_comma") == "1、细则"
+    assert unify_numbering("普通正文没有序号", "chinese_dot") == "普通正文没有序号"
+    print("✓ 序号风格统一正确")
+
+
+def test_cjk_linebreak_rules():
+    assert apply_cjk_linebreak_rules("你好 。世界") == "你好。世界"
+    assert apply_cjk_linebreak_rules("（ 括号") == "（括号"
+    print("✓ 中文换行禁则（去空格）正确")
+
+
+def test_page_background_and_kinsoku():
+    doc = Document()
+    set_page_background(doc, "F2F2F2")
+    xml = doc.settings.element.xml
+    assert "w:background" in xml and "F2F2F2" in xml
+    set_cjk_linebreak_setting(doc)
+    xml2 = doc.settings.element.xml
+    assert "w:kinsoku" in xml2
+    print("✓ 页面背景色 / 换行禁则设置正确")
+
+
+def test_punctuation_only_mode_preserves_fonts():
+    """仅修标点模式：保留原字体/字号，仅修正标点。"""
+    src = _tmp()
+    doc = Document()
+    p = doc.add_paragraph()
+    r = p.add_run("报告标题,副标题。")
+    r.font.name = "Calibri"
+    r.font.size = __import__("docx").shared.Pt(18)
+    doc.save(src)
+    out = _tmp()
+    cfg = FormatterConfig()
+    cfg.process_mode = "punctuation"
+    cfg.normalize_punctuation = True
+    fmt = WordFormatter(cfg, log_cb=lambda m, l: None)
+    r = fmt.format_file(src, os.path.dirname(out))
+    assert r["error"] is None, r["error"]
+    doc2 = Document(r["output"])
+    para = doc2.paragraphs[0]
+    assert para.text == "报告标题，副标题。"   # 标点已修
+    run = para.runs[0]
+    assert run.font.name == "Calibri"          # 字体保留
+    assert abs(run.font.size.pt - 18.0) < 0.01  # 字号保留
+    os.remove(src)
+    os.remove(r["output"])
+    print("✓ 仅修标点模式保留字体/字号")
+
+
 if __name__ == "__main__":
     test_heading_detection()
     test_title_center_and_font()
@@ -231,4 +314,10 @@ if __name__ == "__main__":
     test_txt_and_md_roundtrip()
     test_page_number_added()
     test_header_footer_standard()
+    test_normalize_punctuation()
+    test_numbering_converters()
+    test_unify_numbering()
+    test_cjk_linebreak_rules()
+    test_page_background_and_kinsoku()
+    test_punctuation_only_mode_preserves_fonts()
     print("\n所有引擎测试通过 ✅")

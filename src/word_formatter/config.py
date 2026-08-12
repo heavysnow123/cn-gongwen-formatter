@@ -35,6 +35,13 @@ class FormatterConfig:
     # ---------- 字体（西文/数字） ----------
     use_custom_english_font: bool = True
     english_font: str = "Times New Roman"
+    # 标题西文字体（可选，留空=沿用全局 english_font）。docformat 式“中英字体细分”。
+    title_en_font: str = ""
+    subtitle_en_font: str = ""
+    h1_en_font: str = ""
+    h2_en_font: str = ""
+    h3_en_font: str = ""
+    h4_en_font: str = ""
 
     # ---------- 行距（倍数，段落类） ----------
     title_line_spacing: float = 1.3
@@ -76,7 +83,17 @@ class FormatterConfig:
     set_outline: bool = True
 
     # ---------- 符号标准化（实验） ----------
-    normalize_punctuation: bool = False
+    normalize_punctuation: bool = False     # 标点全半角标准化（中英文标点统一为全角）
+    unify_numbering: bool = False           # 序号风格统一（1. / 1、 / （一）等归一）
+    numbering_style: str = "chinese_dot"    # 目标风格见 NUMBERING_STYLE_OPTIONS
+    cjk_linebreak_rules: bool = False       # 中文换行禁则（避头/避尾 + 启用 kinsoku）
+
+    # ---------- 处理模式 ----------
+    # full=全量排版；punctuation=仅修标点（保留原字体段落，只做标点/序号/禁则）
+    process_mode: str = "full"
+
+    # ---------- 页面背景色（hex，如 F2F2F2；留空不设置） ----------
+    page_background_color: str = ""
 
     # ---------- 空行处理（TXT/MD） ----------
     # preserve / remove_single / keep_single
@@ -142,3 +159,18 @@ BLANK_LINE_MODE_OPTIONS = {
 }
 
 SUPPORTED_FILE_EXTENSIONS = (".docx", ".doc", ".wps", ".txt", ".md")
+
+# 处理模式选项（UI 用）
+PROCESS_MODE_OPTIONS = {
+    "full": "全量排版（字体/页边距/页码/表格等全部处理）",
+    "punctuation": "仅修标点（保留原字体段落，只做标点/序号/禁则）",
+}
+
+# 序号风格选项（UI 用）
+NUMBERING_STYLE_OPTIONS = {
+    "chinese_dot": "一、（中文数字+顿号）",
+    "arabic_dot": "1.（阿拉伯数字+英文点）",
+    "arabic_comma": "1、（阿拉伯数字+顿号）",
+    "paren_chinese": "（一）（括号+中文数字）",
+    "paren_arabic": "（1）（括号+阿拉伯数字）",
+}

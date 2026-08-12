@@ -27,7 +27,7 @@ from docx.oxml import parse_xml
 from .config import FormatterConfig
 from .core import (
     qn, classify_paragraph, apply_para_format, apply_h2_inline_split,
-    add_page_break_before, get_para_font_info, normalize_punctuation,
+    add_page_break_before, get_para_font_info, normalize_punctuation, unify_numbering,
     format_tables, _para_text, footer_segments, header_font_info,
     footer_font_info,
 )
@@ -433,9 +433,12 @@ class StreamFormatter:
                 apply_para_format(p, "h2", self.cfg)
         else:
             apply_para_format(p, ptype, self.cfg)
-        if self.cfg.normalize_punctuation and _para_text(p).strip():
+        if (self.cfg.normalize_punctuation or self.cfg.unify_numbering) and _para_text(p).strip():
             for r in p.runs:
-                r.text = normalize_punctuation(r.text)
+                if self.cfg.normalize_punctuation:
+                    r.text = normalize_punctuation(r.text)
+                if self.cfg.unify_numbering:
+                    r.text = unify_numbering(r.text, self.cfg.numbering_style)
         self._processed += 1
         if self._processed % 5000 == 0:
             self._log(f"已流式处理 {self._processed} 段（内存恒定）", "INFO")

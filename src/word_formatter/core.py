@@ -379,23 +379,216 @@ def normalize_blank_lines(lines, mode: str):
     return reduced  # keep_single
 
 
+def _is_cjk(ch: str) -> bool:
+    return "一" <= ch <= "鿿"
+
+
+def _is_ascii_alnum(ch: str) -> bool:
+    return ch.isascii() and (ch.isalnum() or ch in "+-./%")
+
+
+# 半角标点 -> 全角（中文语境）
+_HALF_TO_FULL = {
+    ",": "，", ":": "：", ";": "；", "?": "？", "!": "！",
+    "(": "（", ")": "）", "[": "【", "]": "】",
+}
+_FULL_TO_HALF = {v: k for k, v in _HALF_TO_FULL.items()}
+
+
 def normalize_punctuation(text: str) -> str:
-    """保守地规范化中英文标点混用。"""
-    # 三个及以上 ASCII 点 -> 省略号
-    text = re.sub(r"\.{3,}", "……", text)
-    # 多个 ASCII 连字符 -> 破折号
-    text = re.sub(r"-{2,}", "——", text)
-    # 全角空格 -> 普通空格
-    text = text.replace("　", " ")
-    # 中文语境下的直引号转成对直角引号（“ ”），按顺序交替开闭
-    _q_state = [0]
-    def _to_curly(_m):
-        _q_state[0] += 1
-        return "“" if _q_state[0] % 2 == 1 else "”"
-    text = re.sub(r'(?<=[\u4e00-\u9fff])"(?=[\u4e00-\u9fff])', _to_curly, text)
-    # 重复句末标点归并
-    text = re.sub(r"([。！？])\1+", r"\1", text)
+    """标点全半角标准化：中文语境的半角标点转全角，英文语境的全角转半角。
+
+    保留数字内的半角点（如 1.5）、千分位逗号（1,000），避免误伤。
+    """
+    out = []
+    q_state = [0]
+    n = len(text)
+    for i, ch in enumerate(text):
+        prev = text[i - 1] if i > 0 else ""
+        nxt = text[i + 1] if i + 1 < n else ""
+        if ch == ".":
+            # 句号：仅当前后是中文时转全角，数字上下文（1.5 / 1.标题）保留
+            if (_is_cjk(prev) or _is_cjk(nxt)) and not (prev.isdigit() or nxt.isdigit()):
+                out.append("。")
+            else:
+                out.append(ch)
+        elif ch in _HALF_TO_FULL:
+            if _is_cjk(prev) or _is_cjk(nxt):
+                out.append(_HALF_TO_FULL[ch])
+            else:
+                out.append(ch)
+        elif ch in ('"', "'"):
+            if _is_cjk(prev) or _is_cjk(nxt):
+                q_state[0] += 1
+                out.append("“" if q_state[0] % 2 == 1 else "”")
+            else:
+                out.append(ch)
+        else:
+            out.append(ch)
+    text = "".join(out)
+
+    # 英文语境下的全角标点转半角（仅当邻居为 ASCII 字母/数字且非中文）
+    out = []
+    n = len(text)
+    for i, ch in enumerate(text):
+        if ch in _FULL_TO_HALF:
+            prev = text[i - 1] if i > 0 else ""
+            nxt = text[i + 1] if i + 1 < n else ""
+            if (_is_ascii_alnum(prev) or _is_ascii_alnum(nxt)) and not (_is_cjk(prev) or _is_cjk(nxt)):
+                out.append(_FULL_TO_HALF[ch])
+            else:
+                out.append(ch)
+        else:
+            out.append(ch)
+    text = "".join(out)
+
+    # 通用规范化（沿用原有规则）
+    text = re.sub(r"\.{3,}", "……", text)          # 三连点 -> 省略号
+    text = re.sub(r"-{2,}", "——", text)            # 多连字符 -> 破折号
+    text = text.replace("　", " ")                   # 全角空格 -> 半角
+    text = re.sub(r"([。！？])\1+", r"\1", text)     # 重复句末标点归并
     return text
+
+
+# ----------------------- 序号风格统一 -----------------------
+_CN_NUM = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
+           "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNIT = {"十": 10, "百": 100, "千": 1000}
+
+
+def chinese_to_arabic(cn: str) -> int:
+    """中文数字（一二三…千）转阿拉伯数字，支持万级。用于序号归一。"""
+    result = 0
+    section = 0
+    number = 0
+    for ch in cn:
+        if ch in _CN_NUM:
+            number = _CN_NUM[ch]
+        elif ch in _CN_UNIT:
+            unit = _CN_UNIT[ch]
+            number = number if number else 1
+            section += number * unit
+            number = 0
+        elif ch == "万":
+            section += number
+            result += section * 10000
+            section = 0
+            number = 0
+        elif ch == "亿":
+            section += number
+            result += section * 100000000
+            section = 0
+            number = 0
+    return result + section + number
+
+
+def arabic_to_chinese(n: int) -> str:
+    """阿拉伯数字转中文数字（支持万级），用于序号归一。"""
+    if n == 0:
+        return "零"
+    digits = "零一二三四五六七八九"
+    units = ["", "十", "百", "千"]
+    s = ""
+    if n >= 10000:
+        s += arabic_to_chinese(n // 10000) + "万"
+        n %= 10000
+        if n == 0:
+            return s
+    strn = str(n)
+    length = len(strn)
+    zero = False
+    for i, ch in enumerate(strn):
+        d = int(ch)
+        pos = length - 1 - i
+        if d == 0:
+            zero = True
+        else:
+            if zero:
+                s += "零"
+                zero = False
+            s += digits[d] + units[pos]
+    s = s.replace("一十", "十")          # 十二 而非 一十二
+    return s
+
+
+_RE_ORDINAL = re.compile(
+    r"^\s*([（(]?)\s*(\d+|[一二三四五六七八九十百千万零]+)\s*([）)]?)\s*([.、．。]?\s*)"
+)
+
+
+def unify_numbering(text: str, style: str = "chinese_dot") -> str:
+    """将行首序号归一为目标风格。仅处理段首序号标记，保留正文。
+
+    style: chinese_dot(一、) / arabic_dot(1.) / arabic_comma(1、) /
+           paren_chinese(（一）) / paren_arabic(（1）)
+    """
+    m = _RE_ORDINAL.match(text)
+    if not m:
+        return text
+    open_b, num, close_b, tail = m.groups()
+    is_arabic = num.isdigit()
+    if is_arabic:
+        val = int(num)
+        cn = arabic_to_chinese(val)
+    else:
+        val = chinese_to_arabic(num)
+        cn = num
+    if style == "chinese_dot":
+        inner = cn
+        marker = inner + "、"
+    elif style == "arabic_dot":
+        inner = str(val)
+        marker = inner + "."
+    elif style == "arabic_comma":
+        inner = str(val)
+        marker = inner + "、"
+    elif style == "paren_chinese":
+        inner = cn
+        marker = "（" + inner + "）"
+    elif style == "paren_arabic":
+        inner = str(val)
+        marker = "（" + inner + "）"
+    else:
+        return text
+    return marker + text[m.end():]
+
+
+# ----------------------- 中文换行禁则 -----------------------
+_LINEBREAK_HEAD = "。！？：；，、）】》」』”’"   # 避头（不应出现在行首）
+_LINEBREAK_TAIL = "（【「『“‘"                    # 避尾（不应出现在行尾）
+
+
+def apply_cjk_linebreak_rules(text: str) -> str:
+    """去除禁则字符邻接处的多余空格，降低破版风险。"""
+    for ch in _LINEBREAK_HEAD:
+        text = text.replace(" " + ch, ch)   # 标点/右括号前的空格 -> 删
+    for ch in _LINEBREAK_TAIL:
+        text = text.replace(ch + " ", ch)   # 左括号后的空格 -> 删
+    return text
+
+
+def set_cjk_linebreak_setting(doc):
+    """在 settings.xml 启用 Word 的中文换行禁则（kinsoku）。"""
+    settings = doc.settings.element
+    for tag, val in (("w:kinsoku", "1"), ("w:noAutoKinsoku", "0")):
+        e = settings.find(qn(tag))
+        if e is None:
+            e = OxmlElement(tag)
+            settings.append(e)
+        e.set(qn("w:val"), val)
+
+
+def set_page_background(doc, hex_color: str):
+    """设置页面背景色（w:background）。hex_color 形如 'F2F2F2'，不带 #。"""
+    hex_color = (hex_color or "").strip().lstrip("#")
+    if not hex_color:
+        return
+    settings = doc.settings.element
+    bg = settings.find(qn("w:background"))
+    if bg is None:
+        bg = OxmlElement("w:background")
+        settings.append(bg)
+    bg.set(qn("w:color"), hex_color)
 
 
 # ----------------------- 标题识别 -----------------------
@@ -486,6 +679,17 @@ def detect_title_subtitle(body, doc, source_type):
 # ----------------------- 格式化应用 -----------------------
 def apply_para_format(p, ptype: str, cfg: FormatterConfig, source_type=None):
     en = cfg.english_font if cfg.use_custom_english_font else None
+    # 标题中英字体细分：各级标题可单独指定西文字体
+    if ptype == "title" and cfg.title_en_font:
+        en = cfg.title_en_font
+    elif ptype == "subtitle" and cfg.subtitle_en_font:
+        en = cfg.subtitle_en_font
+    elif ptype == "h1" and cfg.h1_en_font:
+        en = cfg.h1_en_font
+    elif ptype == "h2" and cfg.h2_en_font:
+        en = cfg.h2_en_font
+    elif ptype in ("h3", "h4") and cfg.h3_en_font:
+        en = cfg.h3_en_font
 
     def fmt(cn_font, size, align, indent_body=False, bold=None):
         for r in p.runs:
@@ -640,6 +844,8 @@ def apply_page_setup(doc, cfg: FormatterConfig):
         section.footer_distance = Cm(cfg.footer_distance_cm)
         add_header(section, cfg)
         add_footer(section, cfg)
+    if cfg.page_background_color.strip():
+        set_page_background(doc, cfg.page_background_color)
 
 
 # ----------------------- 主流程 -----------------------
@@ -749,6 +955,9 @@ class WordFormatter:
             use_stream = self.cfg.streaming_mode or (
                 ext == ".docx" and sz > self.cfg.large_file_threshold_mb * 1024 * 1024
             )
+            # 仅修标点模式：保留原格式，必须走非流式逐 run 修正
+            if self.cfg.process_mode == "punctuation":
+                use_stream = False
             if ext == ".docx" and use_stream:
                 if self.cfg.streaming_mode:
                     self._log("⚡ 大文件流式模式：内存恒定，逐块读写。", "INFO")
@@ -806,6 +1015,10 @@ class WordFormatter:
     def _format_document(self, doc, source_type: str):
         cfg = self.cfg
         body = doc.element.body
+        # 仅修标点模式：保留原字体/段落/页边距，只做标点/序号/禁则文本修正
+        if cfg.process_mode == "punctuation":
+            self._normalize_runs_pass(doc, cfg)
+            return
         title_ids, subtitle_ids = detect_title_subtitle(body, doc, source_type)
 
         from docx.text.paragraph import Paragraph
@@ -837,18 +1050,8 @@ class WordFormatter:
             if total_paras and done % step == 0:
                 self._log(f"排版进度 {int(done / total_paras * 100)}%", "INFO")
 
-        # 符号标准化（实验）
-        if cfg.normalize_punctuation:
-            for child in body:
-                if child.tag != W_P:
-                    continue
-                p = Paragraph(child, doc)
-                _pt = _para_text(p)
-                if _pt.strip():
-                    new = normalize_punctuation(_pt)
-                    if new != _pt:
-                        for r in p.runs:
-                            r.text = normalize_punctuation(r.text)
+        # 符号标准化 / 序号统一 / 中文禁则（实验）
+        self._normalize_runs_pass(doc, cfg)
 
         # 表格（若开启）
         if cfg.enable_table_formatting:
@@ -856,5 +1059,29 @@ class WordFormatter:
 
         # 页面
         apply_page_setup(doc, cfg)
+        if cfg.cjk_linebreak_rules:
+            set_cjk_linebreak_setting(doc)
         if total_paras:
             self._log("排版进度 100%", "INFO")
+
+    def _normalize_runs_pass(self, doc, cfg: FormatterConfig):
+        """按配置对段落 run 文本做标点/序号/禁则修正（保留 run 级字体格式）。"""
+        if not (cfg.normalize_punctuation or cfg.unify_numbering or cfg.cjk_linebreak_rules):
+            return
+        from docx.text.paragraph import Paragraph
+        body = doc.element.body
+        for child in body:
+            if child.tag != W_P:
+                continue
+            p = Paragraph(child, doc)
+            if not _para_text(p).strip():
+                continue
+            for r in p.runs:
+                t = r.text
+                if cfg.normalize_punctuation:
+                    t = normalize_punctuation(t)
+                if cfg.unify_numbering:
+                    t = unify_numbering(t, cfg.numbering_style)
+                if cfg.cjk_linebreak_rules:
+                    t = apply_cjk_linebreak_rules(t)
+                r.text = t
