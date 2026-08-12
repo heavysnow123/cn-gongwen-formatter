@@ -81,7 +81,7 @@
 
 ## 下载
 
-- **Windows 单文件 EXE（无需安装 Python）**：[WordFormatterPro.exe v1.0.0](https://github.com/heavysnow123/cn-gongwen-formatter/releases/download/v1.0.0/WordFormatterPro.exe)
+- **Windows 单文件 EXE（无需安装 Python）**：[WordFormatterPro.exe v1.1.0](https://github.com/heavysnow123/cn-gongwen-formatter/releases/download/v1.1.0/WordFormatterPro.exe)
 - 所有版本与更新说明：[Releases 页面](https://github.com/heavysnow123/cn-gongwen-formatter/releases)
 
 > 运行前请确认系统已安装「仿宋_GB2312」与「楷体_GB2312」（公文必备字体）；
