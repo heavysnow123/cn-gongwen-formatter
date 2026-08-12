@@ -32,8 +32,12 @@
 - **公文**：套用公文排版预设（版心页边距、仿宋正文、黑体层级标题、居中页码），生成红头 + 文号 + 主送机关 + 正文 + 落款的标准公文骨架。
 - **报告**：套用报告排版预设（黑体标题层级、宋体正文、页码 + 页眉），生成大标题 + 副标题 + 章节占位骨架。
 - **红头**：仅生成红色发文机关标志 + 红线 + 文号占位。
+- **信函**：套用信函预设（黑体标题、宋体正文、首行缩进），生成标题 + 称呼 + 正文 + 右对齐落款的信函骨架。
+- **通知**：套用通知预设（黑体层级、宋体正文、页眉），生成标题 + 发文单位 + 正文 + 落款的骨架。
+- **会议纪要**：套用纪要预设（黑体层级、宋体正文、表格），生成标题 + 会议要素（时间/地点/参会人）+ 正文骨架。
 
 > 模板生成的均为占位文本，请替换为真实内容；红头仅作版式占位，单位印章需自行加盖。
+> 模板种类与生成函数集中注册在 `templates.py` 的 `TEMPLATES` / `GENERATORS` 中，新增模板只需补两处映射。
 
 ## PDF 导出
 
@@ -47,7 +51,8 @@
 勾选「优先用内置引擎（不依赖 Office）」可跳过外部程序、直接用内置引擎导出；未勾选时
 若本机没有 Word/WPS/LibreOffice，也会自动回退到内置引擎，保证一定能导出。
 内置引擎以通用排版规则还原字体、字号、对齐、行距、页边距、表格与红头颜色，
-与 Word 的分页可能略有差异，但内容、字体与版式要素完整可打印。
+并做了分页优化——文档开头的红头 / 标题整体保持同页（不被割裂到两页）、每个表格
+整体保持（行不被拆散）。与 Word 的精确分页仍可能有细微差异，但内容、字体与版式要素完整可打印。
 
 ## 排版质检
 
@@ -68,6 +73,12 @@
   统一修正照常生效；页眉 / 页脚 / 页码在流式模式下于 zip 层注入，只新增小部件、不重排原包。
 - **自动降级**：单文件超过 `large_file_threshold_mb`（默认 50MB）自动走流式模式；
   也可在 GUI「其他」页签手动强制开启。
+
+## 界面与批量处理
+
+- **亮 / 暗主题切换**：GUI「其他」页签的「界面主题」可在「浅色 / 深色」间切换，切换即时生效并自动持久化（存入 `~/.word_formatter_default.json`）。Windows 与国产系统共用同一套设置。
+- **高分屏（HiDPI）自适应**：Windows 下启动时启用 `customtkinter.WindowsDPIAware()`，高分屏文字与控件更清晰；国产系统由桌面环境自行处理缩放。
+- **目录树批量处理**：顶部「目录树」按钮可递归收纳所选目录下所有子目录的中文文档，输出时**保持原始相对目录结构**（即 `子目录/文件_formatted.docx` 落在输出目录的同名子目录下），适合批量排版一整个资料树。普通「+ 文件夹」仍为平铺（仅当前目录）。
 
 ## 中文字体检查说明
 
@@ -100,8 +111,10 @@
   前置：系统需有 `python3`、`python3-venv`、`python3-tk`（GUI 依赖 tkinter）。
 - **旧格式（.doc / .wps）转换**：Windows 走 Word / WPS；Linux 上由 LibreOffice 兜底转换，
   请确保已安装 LibreOffice。
-- **打包交付**：Windows 提供单文件 EXE；Linux 暂以「源码 + 脚本」方式分发，后续可补充
-  AppImage / deb 包（含 ARM64 / LoongArch 架构）。
+- **打包交付**：Windows 提供单文件 EXE；国产系统提供两种免安装分发：
+  - `build_linux.sh` 产出 Linux 单文件 `dist/WordFormatterPro`（无需安装 Python）；
+  - `package_appimage.sh` 进一步封装为 **AppImage**（`WordFormatterPro-<架构>.AppImage`，双击即跑，
+    已含 Python 与 tkinter，不再依赖系统 Python）。
 
 ## 下载
 
@@ -145,7 +158,15 @@ python -m venv .venv
   # 产物：dist/WordFormatterPro（Linux 单文件，无需安装 Python）
   ```
   > PyInstaller 不支持交叉编译：x86_64 / ARM64 / LoongArch 需在该架构的本机
-  > （或对应架构的容器）上构建。如需免安装 AppImage，可用 linuxdeploy 对产物再封装。
+  > （或对应架构的容器）上构建。
+- **国产系统版 AppImage（免安装单文件）**：
+  ```bash
+  chmod +x package_appimage.sh
+  ./package_appimage.sh
+  # 产物：WordFormatterPro-<架构>.AppImage（内含 Python 与 tkinter，双击即运行）
+  ```
+  > 运行 AppImage 需要 FUSE；若目标机无 FUSE，可执行
+  > `./WordFormatterPro-<架构>.AppImage --appimage-extract` 解包后运行 `squashfs-root/AppRun`。
 
 ## 目录结构
 
@@ -165,6 +186,7 @@ word-formatter-pro/
 ├── tests/            # 无头单元测试
 ├── build.py          # Windows 版构建（产出 WordFormatterPro.exe）
 ├── build_linux.sh    # 国产系统版构建（产出 Linux 单文件 WordFormatterPro）
+├── package_appimage.sh # 国产系统版 AppImage 封装（产出免安装单文件 AppImage）
 ├── run_linux.sh      # 国产系统一键启动（建 venv + 装依赖 + 启动 GUI）
 ├── launcher.py       # EXE 启动入口
 └── pyproject.toml

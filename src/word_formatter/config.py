@@ -107,6 +107,9 @@ class FormatterConfig:
     large_file_threshold_mb: int = 50          # 单文件超过此 MB 给出大文件预警
     streaming_mode: bool = False               # 大文件流式模式（lxml iterparse，内存恒定）
 
+    # ---------- 界面 ----------
+    appearance_mode: str = "Light"             # Light / Dark（GUI 亮/暗主题）
+
     def to_dict(self) -> dict:
         return asdict(self)
 

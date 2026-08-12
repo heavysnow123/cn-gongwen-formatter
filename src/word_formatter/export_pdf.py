@@ -379,12 +379,31 @@ def export_pdf_builtin(docx_path: str, pdf_path: str) -> str:
         author="WordFormatterPro",
     )
 
+    from docx.enum.text import WD_ALIGN_PARAGRAPH as _WA
+    from reportlab.platypus import KeepTogether
+
+    blocks = list(_iter_blocks(doc))
     flowables = []
-    for kind, block in _iter_blocks(doc):
-        if kind == "p":
-            flowables.append(_para_to_flowable(block))
+
+    # 分页优化 1：文档开头的连续居中段落（红头/标题/副标题）整体保持同页，
+    # 避免“红头或标题被分页割裂到两页”这类与 Word 不一致的现象。
+    lead_end = 0
+    for k, blk in blocks:
+        if k == "p" and getattr(blk, "alignment", None) == _WA.CENTER and lead_end < 6:
+            lead_end += 1
         else:
-            flowables.append(_table_to_flowable(block))
+            break
+    if lead_end:
+        flowables.append(KeepTogether(
+            [_para_to_flowable(blocks[j][1]) for j in range(lead_end)]))
+
+    # 分页优化 2：每个表格整体保持（行不被拆散到两页），超大表由 reportlab 自动拆分。
+    for k, blk in blocks[lead_end:]:
+        if k == "p":
+            flowables.append(_para_to_flowable(blk))
+        else:
+            flowables.append(KeepTogether([_table_to_flowable(blk)]))
+
     if not flowables:
         from reportlab.platypus import Paragraph as _P
         from reportlab.lib.styles import ParagraphStyle as _S

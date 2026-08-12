@@ -84,10 +84,164 @@ def report_template() -> FormatterConfig:
     return c
 
 
+def letter_template() -> FormatterConfig:
+    """信函预设（日常公文信函 / 商务信函）。"""
+    c = FormatterConfig()
+    c.title_font = "黑体"; c.title_size = 22.0
+    c.subtitle_font = "黑体"; c.subtitle_size = 16.0
+    c.h1_font = "黑体"; c.h1_size = 16.0
+    c.h2_font = "楷体"; c.h2_size = 14.0
+    c.body_font = "宋体"; c.body_size = 12.0
+    c.use_custom_english_font = True; c.english_font = "Times New Roman"
+    c.line_spacing = 1.5
+    c.first_line_indent_chars = 2
+    c.force_a4 = True
+    c.margin_top_cm = 2.54; c.margin_bottom_cm = 2.54
+    c.margin_left_cm = 2.54; c.margin_right_cm = 2.54
+    c.page_number = True; c.page_number_align = "center"
+    c.page_number_font = "宋体"; c.page_number_size = 10.5
+    c.header_enabled = False
+    c.set_outline = True
+    return c
+
+
+def notice_template() -> FormatterConfig:
+    """通知预设（单位 / 部门通知）。"""
+    c = FormatterConfig()
+    c.title_font = "黑体"; c.title_size = 22.0
+    c.subtitle_font = "黑体"; c.subtitle_size = 16.0
+    c.h1_font = "黑体"; c.h1_size = 16.0
+    c.h2_font = "黑体"; c.h2_size = 14.0
+    c.body_font = "宋体"; c.body_size = 12.0
+    c.use_custom_english_font = True; c.english_font = "Times New Roman"
+    c.line_spacing = 1.5
+    c.first_line_indent_chars = 2
+    c.force_a4 = True
+    c.margin_top_cm = 2.54; c.margin_bottom_cm = 2.54
+    c.margin_left_cm = 2.54; c.margin_right_cm = 2.54
+    c.page_number = True; c.page_number_align = "center"
+    c.page_number_font = "宋体"; c.page_number_size = 10.5
+    c.header_enabled = True; c.header_text = ""; c.header_align = "center"
+    c.header_border = True
+    c.set_outline = True
+    return c
+
+
+def minutes_template() -> FormatterConfig:
+    """会议纪要预设。"""
+    c = FormatterConfig()
+    c.title_font = "黑体"; c.title_size = 22.0
+    c.subtitle_font = "黑体"; c.subtitle_size = 16.0
+    c.h1_font = "黑体"; c.h1_size = 16.0
+    c.h2_font = "楷体"; c.h2_size = 14.0
+    c.body_font = "宋体"; c.body_size = 12.0
+    c.use_custom_english_font = True; c.english_font = "Times New Roman"
+    c.line_spacing = 1.5
+    c.first_line_indent_chars = 2
+    c.force_a4 = True
+    c.margin_top_cm = 2.54; c.margin_bottom_cm = 2.54
+    c.margin_left_cm = 2.54; c.margin_right_cm = 2.54
+    c.page_number = True; c.page_number_align = "center"
+    c.page_number_font = "宋体"; c.page_number_size = 10.5
+    c.header_enabled = False
+    c.set_outline = True
+    c.enable_table_formatting = True
+    c.table_font = "宋体"; c.table_size = 10.5
+    c.table_header_font = "黑体"; c.table_header_bold = True
+    return c
+
+
+def redhead_template() -> FormatterConfig:
+    """红头模板：沿用默认配置（仅生成红头占位，不改排版预设）。"""
+    return FormatterConfig()
+
+
+def generate_letter(doc, title="（信函标题）", to="（收信人 / 单位）：",
+                    body="（正文：您好！……）",
+                    sign_org="（署名）", sign_date="（日期）"):
+    """生成信函骨架（标题 + 称呼 + 正文 + 落款）。"""
+    paras = []
+    pt = doc.add_paragraph(); pt.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _set_run(pt.add_run(title), "黑体", 22.0, bold=True); paras.append(pt)
+
+    pto = doc.add_paragraph(); pto.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_run(pto.add_run(to), "宋体", 12.0); paras.append(pto)
+
+    pb = doc.add_paragraph(); pb.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_run(pb.add_run(body), "宋体", 12.0); paras.append(pb)
+
+    ps = doc.add_paragraph(); ps.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    _set_run(ps.add_run(sign_org + "\n" + sign_date), "宋体", 12.0); paras.append(ps)
+
+    for p in reversed(paras):
+        _prepend(doc, p._p)
+    return doc
+
+
+def generate_notice(doc, title="（通知标题）",
+                    preamble="（发文单位 / 日期）：",
+                    body="（正文：现将有关事项通知如下……）",
+                    sign_org="（发文单位）", sign_date="（日期）"):
+    """生成通知骨架（标题 + 发文单位 + 正文 + 落款）。"""
+    paras = []
+    pt = doc.add_paragraph(); pt.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _set_run(pt.add_run(title), "黑体", 22.0, bold=True); paras.append(pt)
+
+    pp = doc.add_paragraph(); pp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_run(pp.add_run(preamble), "宋体", 12.0); paras.append(pp)
+
+    pb = doc.add_paragraph(); pb.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_run(pb.add_run(body), "宋体", 12.0); paras.append(pb)
+
+    ps = doc.add_paragraph(); ps.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    _set_run(ps.add_run(sign_org + "\n" + sign_date), "宋体", 12.0); paras.append(ps)
+
+    for p in reversed(paras):
+        _prepend(doc, p._p)
+    return doc
+
+
+def generate_minutes(doc, title="（会议纪要标题）",
+                     meta="会议时间：\n会议地点：\n参会人员：",
+                     body="（议程与决议：……）"):
+    """生成会议纪要骨架（标题 + 会议要素 + 正文）。"""
+    paras = []
+    pt = doc.add_paragraph(); pt.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _set_run(pt.add_run(title), "黑体", 22.0, bold=True); paras.append(pt)
+
+    pm = doc.add_paragraph(); pm.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_run(pm.add_run(meta), "宋体", 12.0); paras.append(pm)
+
+    pb = doc.add_paragraph(); pb.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _set_run(pb.add_run(body), "宋体", 12.0); paras.append(pb)
+
+    for p in reversed(paras):
+        _prepend(doc, p._p)
+    return doc
+
+
 TEMPLATES = {
     "gongwen": ("公文", gongwen_template),
     "report": ("报告", report_template),
+    "redhead": ("红头", redhead_template),
+    "letter": ("信函", letter_template),
+    "notice": ("通知", notice_template),
+    "minutes": ("会议纪要", minutes_template),
 }
+
+# 模板卡片说明（GUI「文档模板」面板按此展示，新增模板只需补 TEMPLATES + 此表）
+TEMPLATE_DESCRIPTIONS = {
+    "gongwen": "红头+版心页边距+仿宋正文+页码；生成完整公文骨架",
+    "report": "黑体标题层级+宋体正文+页码页眉；生成报告骨架",
+    "redhead": "仅生成红色发文机关标志+红线+文号占位",
+    "letter": "信函骨架：标题+称呼+正文+落款（右对齐）",
+    "notice": "通知骨架：标题+发文单位+正文+落款",
+    "minutes": "会议纪要骨架：标题+会议要素+正文",
+}
+
+
+# 种类和骨架生成函数的映射（GUI 与 CLI 共用，新增模板只需在此注册）。
+# 注意：必须在所有 generate_* 函数定义之后赋值（见文件末尾）。
 
 
 # ---------------- 骨架 / 红头生成 ----------------
@@ -259,3 +413,22 @@ def generate_redhead(doc, org_name="（请输入发文机关名称）",
     for p in reversed(paras):
         _prepend(doc, p._p)
     return doc
+
+
+# 种类和骨架生成函数的映射（必须在所有 generate_* 定义之后）
+GENERATORS = {
+    "gongwen": generate_gongwen,
+    "report": generate_report,
+    "redhead": generate_redhead,
+    "letter": generate_letter,
+    "notice": generate_notice,
+    "minutes": generate_minutes,
+}
+
+
+def generate_template(kind: str, doc, **kwargs):
+    """统一入口：按 kind 调用对应骨架生成函数。未知 kind 返回原 doc。"""
+    fn = GENERATORS.get(kind)
+    if fn is None:
+        return doc
+    return fn(doc, **kwargs)

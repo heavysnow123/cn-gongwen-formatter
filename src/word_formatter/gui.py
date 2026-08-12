@@ -115,9 +115,20 @@ except Exception:  # pragma: no cover
 
 class WordFormatterGUI:
     def __init__(self):
-        ctk.set_appearance_mode("Light")
+        # 界面主题（亮/暗）来自持久化配置；必须在建窗前设置
+        self.cfg = FormatterConfig.load(FormatterConfig.default_config_path())
+        mode = self.cfg.appearance_mode
+        if mode not in ("Light", "Dark"):
+            mode = "Light"
+        ctk.set_appearance_mode(mode)
         ctk.set_default_color_theme("blue")
         self._apply_tech_theme()
+
+        # 高分屏（HiDPI）清晰渲染（Windows）
+        try:
+            ctk.WindowsDPIAware()
+        except Exception:
+            pass
 
         if _DND_AVAILABLE:
             self.root = TkinterDnD.Tk()
@@ -127,8 +138,7 @@ class WordFormatterGUI:
         self.root.geometry("1080x760")
         self.root.minsize(900, 640)
 
-        self.cfg = FormatterConfig.load(FormatterConfig.default_config_path())
-        self.file_list: list[str] = []
+        self.file_list: list[dict] = []
         self._running = False
         self.widgets: dict[str, object] = {}
         self._log_queue: list[tuple[str, str]] = []
@@ -178,7 +188,7 @@ class WordFormatterGUI:
     def _build_top(self):
         f = ctk.CTkFrame(self.root)
         f.pack(fill="x", padx=12, pady=(12, 0))
-        ctk.CTkLabel(f, text="Word 排版工具", font=ctk.CTkFont(size=20, weight="bold"),
+        ctk.CTkLabel(f, text=APP_NAME, font=ctk.CTkFont(size=20, weight="bold"),
                      text_color="#0B2239").pack(side="left", padx=8)
         ctk.CTkLabel(f, text="一键式中文文档智能排版",
                      text_color="#0096E6").pack(side="left", padx=4)
@@ -186,6 +196,7 @@ class WordFormatterGUI:
         for label, cmd in (
             ("+ 添加文件", self.add_files),
             ("+ 文件夹", self.add_folder),
+            ("目录树", self.add_tree),
             ("开始排版", self.start_processing),
             ("保存配置", self.save_config),
             ("加载配置", self.load_config),
@@ -217,7 +228,7 @@ class WordFormatterGUI:
         self.file_box.pack(fill="both", expand=True, padx=8, pady=4)
         self.drop_hint = ctk.CTkLabel(
             left,
-            text="拖拽文件/文件夹到这里\n或点顶部“添加文件/文件夹”",
+            text="拖拽文件/文件夹到这里\n或点顶部“添加文件 / 文件夹 / 目录树”",
             text_color=("gray50", "gray60"), justify="center")
         self.drop_hint.pack(fill="x", padx=8, pady=8)
         if _DND_AVAILABLE:
@@ -384,6 +395,12 @@ class WordFormatterGUI:
     # ---------------- 其他页 ----------------
     def _build_other_tab(self):
         sf = self.tab_其他
+        # 界面主题（亮/暗），切换即时生效并持久化
+        self._combo(sf, "界面主题", "appearance_mode",
+                    ["Light", "Dark"],
+                    labels={"Light": "浅色", "Dark": "深色"},
+                    command=self._on_theme_change)
+        ctk.CTkFrame(sf, height=2, fg_color=("#DCE7F4", "#243349")).pack(fill="x", pady=6)
         self._field(sf, "正文行距 (倍数)", "line_spacing")
         self._field(sf, "首行缩进 (字符)", "first_line_indent_chars")
         self._check(sf, "自动设置大纲级别（生成导航目录）", "set_outline")
@@ -424,14 +441,46 @@ class WordFormatterGUI:
         w.pack(anchor="w", padx=6, pady=3)
         self.widgets[key] = w
 
-    def _combo(self, parent, label, key, values, labels=None):
+    def _combo(self, parent, label, key, values, labels=None, command=None):
         row = ctk.CTkFrame(parent)
         row.pack(fill="x", padx=4, pady=2)
         ctk.CTkLabel(row, text=label, width=150, anchor="w").pack(side="left", padx=4)
         disp = [labels.get(v, v) if labels else v for v in values]
-        w = ctk.CTkComboBox(row, values=disp, width=200)
+        w = ctk.CTkComboBox(row, values=disp, width=200,
+                            command=(lambda _v=None: command()) if command else None)
         w.pack(side="right", padx=4)
         self.widgets[key] = (w, values, labels)
+
+    # ---------------- 弹窗 / 主题 ----------------
+    def _popup(self, title, w, h):
+        """统一的子窗口创建：标题栏 + 尺寸 + 跟随主窗。"""
+        win = ctk.CTkToplevel(self.root)
+        win.title(title)
+        win.geometry(f"{w}x{h}")
+        win.transient(self.root)
+        return win
+
+    def _apply_theme(self):
+        """按配置文件里的 appearance_mode 应用界面亮/暗主题。"""
+        mode = self.cfg.appearance_mode
+        if mode not in ("Light", "Dark"):
+            mode = "Light"
+        ctk.set_appearance_mode(mode)
+
+    def _on_theme_change(self):
+        """主题下拉变更：实时切换并持久化。"""
+        w, values, labels = self.widgets.get("appearance_mode", (None, None, None))
+        if w is None:
+            return
+        disp = w.get()
+        internal = next((v for v in values
+                         if (labels.get(v, v) if labels else v) == disp), "Light")
+        if internal not in ("Light", "Dark"):
+            internal = "Light"
+        ctk.set_appearance_mode(internal)
+        self.cfg.appearance_mode = internal
+        self.cfg.save(FormatterConfig.default_config_path())
+        self._log(f"已切换为「{'深色' if internal == 'Dark' else '浅色'}」主题")
 
     # ---------------- 配置读写 ----------------
     def _apply_config(self, cfg: FormatterConfig):
@@ -513,6 +562,7 @@ class WordFormatterGUI:
             cfg = FormatterConfig.load(p)
             self.cfg = cfg
             self._apply_config(cfg)
+            self._apply_theme()
             self._log(f"已加载配置：{p}")
         except Exception as e:
             self._log(f"加载配置失败：{e}", "ERROR")
@@ -520,6 +570,7 @@ class WordFormatterGUI:
     def reset_defaults(self):
         self.cfg = FormatterConfig()
         self._apply_config(self.cfg)
+        self._apply_theme()
         self.cfg.save(FormatterConfig.default_config_path())
         self._log("已恢复内置默认配置")
 
@@ -531,10 +582,10 @@ class WordFormatterGUI:
             self.drop_hint.pack(fill="x", padx=8, pady=8)
             return
         self.drop_hint.pack_forget()
-        for i, path in enumerate(self.file_list):
+        for i, entry in enumerate(self.file_list):
             row = ctk.CTkFrame(self.file_box)
             row.pack(fill="x", padx=2, pady=1)
-            ctk.CTkLabel(row, text=f"{i+1}. {os.path.basename(path)}",
+            ctk.CTkLabel(row, text=f"{i+1}. {entry['rel']}",
                          anchor="w").pack(side="left", fill="x", expand=True, padx=4)
             ctk.CTkButton(row, text="✕", width=28, fg_color=("gray70", "gray30"),
                           command=lambda idx=i: self._remove_index(idx)).pack(side="right", padx=2)
@@ -551,23 +602,44 @@ class WordFormatterGUI:
         self._add_paths(list(files))
 
     def add_folder(self):
+        """添加文件夹（仅当前目录，不递归）。"""
         from tkinter import filedialog
         d = filedialog.askdirectory()
         if d:
-            self._add_paths([os.path.join(d, f) for f in os.listdir(d)
-                             if f.lower().endswith(SUPPORTED_FILE_EXTENSIONS)])
+            files = [os.path.join(d, f) for f in os.listdir(d)
+                     if f.lower().endswith(SUPPORTED_FILE_EXTENSIONS)]
+            self._add_paths(files)
+
+    def add_tree(self):
+        """添加目录树（递归收纳所有子目录中的文档，输出时保持相对目录结构）。"""
+        from tkinter import filedialog
+        d = filedialog.askdirectory(title="选择目录（递归收纳全部子目录文档）")
+        if not d:
+            return
+        root = os.path.abspath(d)
+        collected = []
+        for cur, _dirs, files in os.walk(root):
+            for f in files:
+                if f.lower().endswith(SUPPORTED_FILE_EXTENSIONS):
+                    collected.append(os.path.join(cur, f))
+        if not collected:
+            self._log(f"目录中未找到支持的文档：{d}", "WARN")
+            return
+        self._add_paths(collected, base=root)
 
     def handle_drop(self, event):
         files = self.root.tk.splitlist(event.data) if _DND_AVAILABLE else []
         self._add_paths([f for f in files if f.lower().endswith(SUPPORTED_FILE_EXTENSIONS)])
 
-    def _add_paths(self, paths):
+    def _add_paths(self, paths, base=None):
         added = 0
         for p in paths:
             ap = os.path.abspath(p)
-            if ap not in self.file_list:
-                self.file_list.append(ap)
-                added += 1
+            rel = os.path.relpath(ap, base) if base else os.path.basename(ap)
+            if any(e["path"] == ap for e in self.file_list):
+                continue
+            self.file_list.append({"path": ap, "rel": rel})
+            added += 1
         if added:
             self._refresh_file_list()
             self._log(f"已添加 {added} 个文件")
@@ -669,8 +741,11 @@ class WordFormatterGUI:
         fmt = WordFormatter(cfg, log_cb=self._queue_log)
         total = len(self.file_list)
         ok = skip = err = 0
-        for i, f in enumerate(self.file_list):
-            r = fmt.format_file(f, out)
+        for i, entry in enumerate(self.file_list):
+            src = entry["path"]
+            rel_dir = os.path.dirname(entry["rel"])
+            target_dir = out if not rel_dir else os.path.join(out, rel_dir)
+            r = fmt.format_file(src, target_dir)
             if r["skipped"]:
                 skip += 1
             elif r["error"]:
@@ -749,9 +824,7 @@ class WordFormatterGUI:
             "（楷体）、思源宋体 / Noto Serif CJK（大标题）替代。缺失时可在“字体”页查看状态，\n"
             "本工具不安装字体，请自行准备并安装到系统。"
         )
-        win = ctk.CTkToplevel(self.root)
-        win.title("使用说明")
-        win.geometry("560x420")
+        win = self._popup("使用说明", 560, 420)
         t = ctk.CTkTextbox(win, wrap="word")
         t.pack(fill="both", expand=True, padx=12, pady=12)
         t.insert("end", help_text)
@@ -774,16 +847,16 @@ class WordFormatterGUI:
 
     # ---------------- 模板 / 质检 / 导出 ----------------
     def open_template(self):
-        win = ctk.CTkToplevel(self.root)
-        win.title("文档模板")
-        win.geometry("480x380")
-        win.transient(self.root)
+        from .templates import TEMPLATES, TEMPLATE_DESCRIPTIONS
+        win = self._popup("文档模板", 480, 480)
         ctk.CTkLabel(win, text="选择模板：自动套用排版预设并生成标准骨架文档",
                      font=ctk.CTkFont(weight="bold")).pack(pady=(12, 6))
+        sf = ctk.CTkScrollableFrame(win)
+        sf.pack(fill="both", expand=True, padx=12, pady=6)
 
         def card(kind, title, desc):
-            f = ctk.CTkFrame(win)
-            f.pack(fill="x", padx=20, pady=6)
+            f = ctk.CTkFrame(sf)
+            f.pack(fill="x", padx=4, pady=6)
             ctk.CTkLabel(f, text=title, font=ctk.CTkFont(weight="bold", size=15)
                          ).pack(anchor="w", padx=10, pady=(6, 0))
             ctk.CTkLabel(f, text=desc, text_color=("gray50", "gray60"),
@@ -792,21 +865,19 @@ class WordFormatterGUI:
                           command=lambda k=kind: self._apply_and_build(k)).pack(
                 anchor="e", padx=10, pady=6)
 
-        card("gongwen", "公文", "红头+版心页边距+仿宋正文+页码；生成完整公文骨架")
-        card("report", "报告", "黑体标题层级+宋体正文+页码页眉；生成报告骨架")
-        card("redhead", "红头", "仅生成红色发文机关标志+红线+文号占位")
+        for kind, (label, _fn) in TEMPLATES.items():
+            desc = TEMPLATE_DESCRIPTIONS.get(kind, "")
+            card(kind, label, desc)
 
     def _apply_and_build(self, kind):
         from tkinter import filedialog
-        from .templates import (TEMPLATES, generate_gongwen,
-                                generate_report, generate_redhead)
+        from .templates import TEMPLATES, TEMPLATE_DESCRIPTIONS, generate_template
         from docx import Document
         if kind in TEMPLATES:
-            _, fn = TEMPLATES[kind]
+            label, fn = TEMPLATES[kind]
             self.cfg = fn()
             self._apply_config(self.cfg)
             self.cfg.save(FormatterConfig.default_config_path())
-            label = "公文" if kind == "gongwen" else "报告"
             self._log(f"已套用「{label}」排版预设")
         out = filedialog.asksaveasfilename(
             defaultextension=".docx", filetypes=[("Word", "*.docx")],
@@ -814,12 +885,7 @@ class WordFormatterGUI:
         if not out:
             return
         doc = Document()
-        if kind == "gongwen":
-            generate_gongwen(doc)
-        elif kind == "report":
-            generate_report(doc)
-        elif kind == "redhead":
-            generate_redhead(doc)
+        generate_template(kind, doc)
         doc.save(out)
         self._log(f"✅ 已生成模板文档：{out}")
 
@@ -835,10 +901,7 @@ class WordFormatterGUI:
         except Exception as e:
             self._log(f"❌ 质检失败：{e}", "ERROR")
             return
-        win = ctk.CTkToplevel(self.root)
-        win.title("排版质检报告")
-        win.geometry("560x480")
-        win.transient(self.root)
+        win = self._popup("排版质检报告", 560, 480)
         ctk.CTkLabel(win, text=f"综合评分 {rep['score']} / 100　等级：{rep['level']}",
                      font=ctk.CTkFont(weight="bold", size=16)).pack(pady=10)
         box = ctk.CTkScrollableFrame(win)
