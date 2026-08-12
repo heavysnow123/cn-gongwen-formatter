@@ -38,6 +38,7 @@ def main():
         "--hidden-import", "reportlab",
         "--hidden-import", "reportlab.pdfbase.cidfonts",
         "--hidden-import", "reportlab.pdfbase.ttfonts",
+        "--additional-hooks-dir", os.path.join(HERE, "pyinstaller_hooks"),
     ]
 
     print(f"开始构建 WordFormatterPro.exe（临时目录 {tmp}）...")
